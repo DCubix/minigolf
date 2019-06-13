@@ -356,6 +356,9 @@ var engine_InputManager = function(canvas) {
 		_gthis.mouseX = Math.floor((e4.clientX - rect.left) / 2);
 		_gthis.mouseY = Math.floor((e4.clientY - rect.top) / 2);
 	};
+	canvas.oncontextmenu = function() {
+		return false;
+	};
 };
 engine_InputManager.__name__ = true;
 engine_InputManager.prototype = {

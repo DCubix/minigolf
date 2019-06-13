@@ -71,6 +71,8 @@ class InputManager {
 			this.mouseY = Math.floor((e.clientY - rect.top) / 2);
 		};
 
+		canvas.oncontextmenu = function() return false;
+
 	}
 
 	public function isKeyPressed(key: String) {
