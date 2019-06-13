@@ -6,13 +6,22 @@ function $extend(from, fields) {
 	if( fields.toString !== Object.prototype.toString ) proto.toString = fields.toString;
 	return proto;
 }
+var HxOverrides = function() { };
+HxOverrides.__name__ = true;
+HxOverrides.iter = function(a) {
+	return { cur : 0, arr : a, hasNext : function() {
+		return this.cur < this.arr.length;
+	}, next : function() {
+		return this.arr[this.cur++];
+	}};
+};
 var engine_GameCanvas = function(target) {
 	this.accum = 0.0;
 	this.lastTime = new Date().getTime() / 1000;
-	this.imagePaths = [];
-	this.images = new haxe_ds_StringMap();
+	this.assets = new engine_AssetManager();
 	this.canvas = js_Boot.__cast(window.document.createElement("canvas") , HTMLCanvasElement);
 	this.buffer = js_Boot.__cast(window.document.createElement("canvas") , HTMLCanvasElement);
+	this.input = new engine_InputManager(this.canvas);
 	if(target == null) {
 		window.document.body.appendChild(this.canvas);
 	} else {
@@ -20,8 +29,8 @@ var engine_GameCanvas = function(target) {
 	}
 	this.canvas.width = 800;
 	this.canvas.height = 600;
-	this.buffer.width = js_Boot.__cast(this.canvas.width / 4 , Int);
-	this.buffer.height = js_Boot.__cast(this.canvas.height / 4 , Int);
+	this.buffer.width = js_Boot.__cast(this.canvas.width / 2 , Int);
+	this.buffer.height = js_Boot.__cast(this.canvas.height / 2 , Int);
 	this.ctx = this.canvas.getContext("2d",null);
 	this.ctx.imageSmoothingEnabled = false;
 	this.bctx = this.buffer.getContext("2d",null);
@@ -30,65 +39,7 @@ var engine_GameCanvas = function(target) {
 };
 engine_GameCanvas.__name__ = true;
 engine_GameCanvas.prototype = {
-	loadImage: function(path) {
-		this.imagePaths.push(path);
-	}
-	,getImage: function(path) {
-		var _this = this.images;
-		if(__map_reserved[path] != null) {
-			return _this.getReserved(path);
-		} else {
-			return _this.h[path];
-		}
-	}
-	,loadAll: function(onFinish) {
-		var _gthis = this;
-		if(this.imagePaths.length == 0) {
-			onFinish();
-		}
-		var loadedCount = 0;
-		var errCount = 0;
-		var _g = 0;
-		var _g1 = this.imagePaths;
-		while(_g < _g1.length) {
-			var path = [_g1[_g]];
-			++_g;
-			var img = [new Image()];
-			img[0].onload = (function(img1,path1) {
-				return function() {
-					var canvas = js_Boot.__cast(window.document.createElement("canvas") , HTMLCanvasElement);
-					canvas.width = img1[0].width;
-					canvas.height = img1[0].height;
-					var ctx = canvas.getContext("2d",null);
-					ctx.drawImage(img1[0],0,0);
-					var spr = new engine_Sprite();
-					spr.width = img1[0].width;
-					spr.height = img1[0].height;
-					spr.pixels = ctx.getImageData(0,0,img1[0].width,img1[0].height).data;
-					var _this = _gthis.images;
-					if(__map_reserved[path1[0]] != null) {
-						_this.setReserved(path1[0],spr);
-					} else {
-						_this.h[path1[0]] = spr;
-					}
-					loadedCount += 1;
-					if(loadedCount + errCount >= _gthis.imagePaths.length) {
-						onFinish();
-					}
-				};
-			})(img,path);
-			img[0].onerror = (function() {
-				return function() {
-					errCount += 1;
-					if(loadedCount + errCount >= _gthis.imagePaths.length) {
-						onFinish();
-					}
-				};
-			})();
-			img[0].src = path[0];
-		}
-	}
-	,onPreload: function() {
+	onPreload: function() {
 	}
 	,onInit: function() {
 	}
@@ -99,7 +50,7 @@ engine_GameCanvas.prototype = {
 	,start: function() {
 		var _gthis = this;
 		this.onPreload();
-		this.loadAll(function() {
+		this.assets.loadAll(function() {
 			_gthis.onInit();
 			_gthis._mainloop_(0.0);
 		});
@@ -179,15 +130,21 @@ engine_GameCanvas.prototype = {
 		var delta = currentTime - this.lastTime;
 		this.lastTime = currentTime;
 		this.accum += delta;
-		while(this.accum >= 0.016666666666666666) this.accum -= 0.016666666666666666;
+		this.input.refresh();
+		while(this.accum >= 0.016666666666666666) {
+			this.accum -= 0.016666666666666666;
+			this.onUpdate(0.016666666666666666);
+		}
 		this.onDraw();
 		this.flip();
 		window.requestAnimationFrame($bind(this,this._mainloop_));
 	}
 	,__class__: engine_GameCanvas
 };
-var Main = function(target) {
-	engine_GameCanvas.call(this,target);
+var Main = function() {
+	this.sx = 2;
+	engine_GameCanvas.call(this);
+	this.sb = new engine_SpriteBatch();
 };
 Main.__name__ = true;
 Main.main = function() {
@@ -196,14 +153,24 @@ Main.main = function() {
 Main.__super__ = engine_GameCanvas;
 Main.prototype = $extend(engine_GameCanvas.prototype,{
 	onPreload: function() {
-		this.loadImage("sprites.png");
+		this.assets.loadSprite("sprites.png");
 	}
 	,onInit: function() {
-		this.sprites = this.getImage("sprites.png");
+		this.sprites = this.assets.getSprite("sprites.png");
 	}
 	,onDraw: function() {
 		this.clear();
-		this.tile(this.sprites,8,7,0,2,2);
+		var _g = 0;
+		while(_g < 20) {
+			var i = _g++;
+			this.sb.drawTile(this.sprites,8,7,0,i * 2 + Math.floor(this.sx / (i + 1)),i * 2);
+		}
+		this.sb.flush(this);
+	}
+	,onUpdate: function(dt) {
+		if(this.input.isKeyHeld("d")) {
+			this.sx += 40.0 * dt;
+		}
 	}
 	,__class__: Main
 });
@@ -212,6 +179,90 @@ var Std = function() { };
 Std.__name__ = true;
 Std.string = function(s) {
 	return js_Boot.__string_rec(s,"");
+};
+var engine_AssetType = { __ename__ : true, __constructs__ : ["ASSET_SPRITE"] };
+engine_AssetType.ASSET_SPRITE = ["ASSET_SPRITE",0];
+engine_AssetType.ASSET_SPRITE.__enum__ = engine_AssetType;
+var engine_Asset = function(path,type) {
+	this.type = type;
+	this.path = path;
+};
+engine_Asset.__name__ = true;
+engine_Asset.prototype = {
+	__class__: engine_Asset
+};
+var engine_Sprite = function() {
+};
+engine_Sprite.__name__ = true;
+engine_Sprite.prototype = {
+	__class__: engine_Sprite
+};
+var engine_AssetManager = function() {
+	this.assets = [];
+	this.sprites = new haxe_ds_StringMap();
+};
+engine_AssetManager.__name__ = true;
+engine_AssetManager.prototype = {
+	loadSprite: function(path) {
+		this.assets.push(new engine_Asset(path,engine_AssetType.ASSET_SPRITE));
+	}
+	,getSprite: function(path) {
+		var _this = this.sprites;
+		if(__map_reserved[path] != null) {
+			return _this.getReserved(path);
+		} else {
+			return _this.h[path];
+		}
+	}
+	,loadAll: function(onFinish) {
+		var _gthis = this;
+		if(this.assets.length == 0) {
+			onFinish();
+		}
+		var loadedCount = 0;
+		var errCount = 0;
+		var _g = 0;
+		var _g1 = this.assets;
+		while(_g < _g1.length) {
+			var ast = [_g1[_g]];
+			++_g;
+			var img = [new Image()];
+			img[0].onload = (function(img1,ast1) {
+				return function() {
+					var canvas = js_Boot.__cast(window.document.createElement("canvas") , HTMLCanvasElement);
+					canvas.width = img1[0].width;
+					canvas.height = img1[0].height;
+					var ctx = canvas.getContext("2d",null);
+					ctx.drawImage(img1[0],0,0);
+					var spr = new engine_Sprite();
+					spr.width = img1[0].width;
+					spr.height = img1[0].height;
+					spr.pixels = ctx.getImageData(0,0,img1[0].width,img1[0].height).data;
+					var _this = _gthis.sprites;
+					var key = ast1[0].path;
+					if(__map_reserved[key] != null) {
+						_this.setReserved(key,spr);
+					} else {
+						_this.h[key] = spr;
+					}
+					loadedCount += 1;
+					if(loadedCount + errCount >= _gthis.assets.length) {
+						onFinish();
+					}
+				};
+			})(img,ast);
+			img[0].onerror = (function() {
+				return function() {
+					errCount += 1;
+					if(loadedCount + errCount >= _gthis.assets.length) {
+						onFinish();
+					}
+				};
+			})();
+			img[0].src = ast[0].path;
+		}
+	}
+	,__class__: engine_AssetManager
 };
 var engine_Range = function(start,end,step) {
 	this.index = start;
@@ -229,14 +280,292 @@ engine_Range.prototype = {
 	}
 	,__class__: engine_Range
 };
-var engine_Sprite = function() {
+var engine__$InputManager_InputState = function() {
 };
-engine_Sprite.__name__ = true;
-engine_Sprite.prototype = {
-	__class__: engine_Sprite
+engine__$InputManager_InputState.__name__ = true;
+engine__$InputManager_InputState.prototype = {
+	__class__: engine__$InputManager_InputState
+};
+var engine_InputManager = function(canvas) {
+	this.mouseY = 0;
+	this.mouseX = 0;
+	var _gthis = this;
+	this.keyboard = new haxe_ds_StringMap();
+	this.mouse = new haxe_ds_IntMap();
+	window.document.body.onkeydown = function(e) {
+		e.preventDefault();
+		var _this = _gthis.keyboard;
+		var key = e.key;
+		if(!(__map_reserved[key] != null ? _this.existsReserved(key) : _this.h.hasOwnProperty(key))) {
+			var _this1 = _gthis.keyboard;
+			var key1 = e.key;
+			var value = new engine__$InputManager_InputState();
+			if(__map_reserved[key1] != null) {
+				_this1.setReserved(key1,value);
+			} else {
+				_this1.h[key1] = value;
+			}
+		}
+		var _this2 = _gthis.keyboard;
+		var key2 = e.key;
+		(__map_reserved[key2] != null ? _this2.getReserved(key2) : _this2.h[key2]).pressed = true;
+		var _this3 = _gthis.keyboard;
+		var key3 = e.key;
+		(__map_reserved[key3] != null ? _this3.getReserved(key3) : _this3.h[key3]).held = true;
+	};
+	window.document.body.onkeyup = function(e1) {
+		e1.preventDefault();
+		var _this4 = _gthis.keyboard;
+		var key4 = e1.key;
+		if(!(__map_reserved[key4] != null ? _this4.existsReserved(key4) : _this4.h.hasOwnProperty(key4))) {
+			var _this5 = _gthis.keyboard;
+			var key5 = e1.key;
+			var value1 = new engine__$InputManager_InputState();
+			if(__map_reserved[key5] != null) {
+				_this5.setReserved(key5,value1);
+			} else {
+				_this5.h[key5] = value1;
+			}
+		}
+		var _this6 = _gthis.keyboard;
+		var key6 = e1.key;
+		(__map_reserved[key6] != null ? _this6.getReserved(key6) : _this6.h[key6]).released = true;
+		var _this7 = _gthis.keyboard;
+		var key7 = e1.key;
+		(__map_reserved[key7] != null ? _this7.getReserved(key7) : _this7.h[key7]).held = false;
+	};
+	window.document.body.onmousedown = function(e2) {
+		e2.preventDefault();
+		if(!_gthis.mouse.h.hasOwnProperty(e2.button)) {
+			_gthis.mouse.h[e2.button] = new engine__$InputManager_InputState();
+		}
+		_gthis.mouse.h[e2.button].pressed = true;
+		_gthis.mouse.h[e2.button].held = true;
+	};
+	window.document.body.onmouseup = function(e3) {
+		e3.preventDefault();
+		if(!_gthis.mouse.h.hasOwnProperty(e3.button)) {
+			_gthis.mouse.h[e3.button] = new engine__$InputManager_InputState();
+		}
+		_gthis.mouse.h[e3.button].released = true;
+		_gthis.mouse.h[e3.button].held = false;
+	};
+	window.document.body.onmousemove = function(e4) {
+		e4.preventDefault();
+		var rect = canvas.getBoundingClientRect();
+		_gthis.mouseX = Math.floor((e4.clientX - rect.left) / 2);
+		_gthis.mouseY = Math.floor((e4.clientY - rect.top) / 2);
+	};
+};
+engine_InputManager.__name__ = true;
+engine_InputManager.prototype = {
+	isKeyPressed: function(key) {
+		var _this = this.keyboard;
+		if(__map_reserved[key] != null ? _this.existsReserved(key) : _this.h.hasOwnProperty(key)) {
+			var _this1 = this.keyboard;
+			return (__map_reserved[key] != null ? _this1.getReserved(key) : _this1.h[key]).pressed;
+		} else {
+			return false;
+		}
+	}
+	,isKeyReleased: function(key) {
+		var _this = this.keyboard;
+		if(__map_reserved[key] != null ? _this.existsReserved(key) : _this.h.hasOwnProperty(key)) {
+			var _this1 = this.keyboard;
+			return (__map_reserved[key] != null ? _this1.getReserved(key) : _this1.h[key]).released;
+		} else {
+			return false;
+		}
+	}
+	,isKeyHeld: function(key) {
+		var _this = this.keyboard;
+		if(__map_reserved[key] != null ? _this.existsReserved(key) : _this.h.hasOwnProperty(key)) {
+			var _this1 = this.keyboard;
+			return (__map_reserved[key] != null ? _this1.getReserved(key) : _this1.h[key]).held;
+		} else {
+			return false;
+		}
+	}
+	,isMousePressed: function(btn) {
+		if(this.mouse.h.hasOwnProperty(btn)) {
+			return this.mouse.h[btn].pressed;
+		} else {
+			return false;
+		}
+	}
+	,isMouseReleased: function(btn) {
+		if(this.mouse.h.hasOwnProperty(btn)) {
+			return this.mouse.h[btn].released;
+		} else {
+			return false;
+		}
+	}
+	,isMouseHeld: function(btn) {
+		if(this.mouse.h.hasOwnProperty(btn)) {
+			return this.mouse.h[btn].held;
+		} else {
+			return false;
+		}
+	}
+	,refresh: function() {
+		var _this = this.keyboard;
+		var e = new haxe_ds__$StringMap_StringMapIterator(_this,_this.arrayKeys());
+		while(e.hasNext()) {
+			var e1 = e.next();
+			e1.pressed = false;
+			e1.released = false;
+		}
+		var e2 = this.mouse.iterator();
+		while(e2.hasNext()) {
+			var e3 = e2.next();
+			e3.pressed = false;
+			e3.released = false;
+		}
+	}
+	,__class__: engine_InputManager
+};
+var engine_DrawType = { __ename__ : true, __constructs__ : ["SPRITE","TILE"] };
+engine_DrawType.SPRITE = ["SPRITE",0];
+engine_DrawType.SPRITE.__enum__ = engine_DrawType;
+engine_DrawType.TILE = ["TILE",1];
+engine_DrawType.TILE.__enum__ = engine_DrawType;
+var engine_Sorting = { __ename__ : true, __constructs__ : ["Y_SORT","NO_SORTING"] };
+engine_Sorting.Y_SORT = ["Y_SORT",0];
+engine_Sorting.Y_SORT.__enum__ = engine_Sorting;
+engine_Sorting.NO_SORTING = ["NO_SORTING",1];
+engine_Sorting.NO_SORTING.__enum__ = engine_Sorting;
+var engine_DrawCommand = function() {
+};
+engine_DrawCommand.__name__ = true;
+engine_DrawCommand.prototype = {
+	__class__: engine_DrawCommand
+};
+var engine_SpriteBatch = function() {
+	this.commands = [];
+};
+engine_SpriteBatch.__name__ = true;
+engine_SpriteBatch.prototype = {
+	drawSprite: function(spr,x,y,sx,sy,sw,sh) {
+		if(sh == null) {
+			sh = 0;
+		}
+		if(sw == null) {
+			sw = 0;
+		}
+		if(sy == null) {
+			sy = 0;
+		}
+		if(sx == null) {
+			sx = 0;
+		}
+		var cmd = new engine_DrawCommand();
+		cmd.drawType = engine_DrawType.SPRITE;
+		cmd.x = x;
+		cmd.y = y;
+		cmd.sprite = spr;
+		cmd.sx = sx;
+		cmd.sy = sy;
+		cmd.sw = sw;
+		cmd.sh = sh;
+		this.commands.push(cmd);
+	}
+	,drawTile: function(spr,cols,rows,index,x,y) {
+		var cmd = new engine_DrawCommand();
+		cmd.drawType = engine_DrawType.TILE;
+		cmd.x = x;
+		cmd.y = y;
+		cmd.sprite = spr;
+		cmd.tileIndex = index;
+		cmd.cols = cols;
+		cmd.rows = rows;
+		this.commands.push(cmd);
+	}
+	,flush: function(canvas,sorting,reverse) {
+		if(reverse == null) {
+			reverse = false;
+		}
+		if(sorting != null) {
+			if(sorting[1] == 0) {
+				this.commands.sort(function(a,b) {
+					if(a.y == b.y) {
+						return 0;
+					}
+					if(a.y > b.y) {
+						return 1;
+					} else {
+						return -1;
+					}
+				});
+			}
+		}
+		if(reverse) {
+			this.commands.reverse();
+		}
+		var _g = 0;
+		var _g1 = this.commands;
+		while(_g < _g1.length) {
+			var cmd = _g1[_g];
+			++_g;
+			switch(cmd.drawType[1]) {
+			case 0:
+				canvas.sprite(cmd.sprite,cmd.x,cmd.y,cmd.sx,cmd.sy,cmd.sw,cmd.sh);
+				break;
+			case 1:
+				canvas.tile(cmd.sprite,cmd.cols,cmd.rows,cmd.tileIndex,cmd.x,cmd.y);
+				break;
+			}
+		}
+		while(this.commands.length > 0) this.commands.pop();
+	}
+	,__class__: engine_SpriteBatch
 };
 var haxe_IMap = function() { };
 haxe_IMap.__name__ = true;
+var haxe_ds_IntMap = function() {
+	this.h = { };
+};
+haxe_ds_IntMap.__name__ = true;
+haxe_ds_IntMap.__interfaces__ = [haxe_IMap];
+haxe_ds_IntMap.prototype = {
+	keys: function() {
+		var a = [];
+		for( var key in this.h ) if(this.h.hasOwnProperty(key)) {
+			a.push(key | 0);
+		}
+		return HxOverrides.iter(a);
+	}
+	,iterator: function() {
+		return { ref : this.h, it : this.keys(), hasNext : function() {
+			return this.it.hasNext();
+		}, next : function() {
+			var i = this.it.next();
+			return this.ref[i];
+		}};
+	}
+	,__class__: haxe_ds_IntMap
+};
+var haxe_ds__$StringMap_StringMapIterator = function(map,keys) {
+	this.map = map;
+	this.keys = keys;
+	this.index = 0;
+	this.count = keys.length;
+};
+haxe_ds__$StringMap_StringMapIterator.__name__ = true;
+haxe_ds__$StringMap_StringMapIterator.prototype = {
+	hasNext: function() {
+		return this.index < this.count;
+	}
+	,next: function() {
+		var _this = this.map;
+		var key = this.keys[this.index++];
+		if(__map_reserved[key] != null) {
+			return _this.getReserved(key);
+		} else {
+			return _this.h[key];
+		}
+	}
+	,__class__: haxe_ds__$StringMap_StringMapIterator
+};
 var haxe_ds_StringMap = function() {
 	this.h = { };
 };
@@ -255,6 +584,28 @@ haxe_ds_StringMap.prototype = {
 		} else {
 			return this.rh["$" + key];
 		}
+	}
+	,existsReserved: function(key) {
+		if(this.rh == null) {
+			return false;
+		}
+		return this.rh.hasOwnProperty("$" + key);
+	}
+	,arrayKeys: function() {
+		var out = [];
+		for( var key in this.h ) {
+		if(this.h.hasOwnProperty(key)) {
+			out.push(key);
+		}
+		}
+		if(this.rh != null) {
+			for( var key in this.rh ) {
+			if(key.charCodeAt(0) == 36) {
+				out.push(key.substr(1));
+			}
+			}
+		}
+		return out;
 	}
 	,__class__: haxe_ds_StringMap
 };

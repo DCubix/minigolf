@@ -1,13 +1,11 @@
 package engine;
 
+import engine.AssetManager.Sprite;
 import js.html.Node;
 import js.html.CanvasElement;
 import js.html.CanvasRenderingContext2D;
 import js.html.ImageData;
-import js.html.Image;
-import js.html.Uint8ClampedArray;
-
-import haxe.ds.StringMap;
+import js.Browser;
 
 class Range {
 	var end:Int;
@@ -24,67 +22,16 @@ class Range {
 	public inline function next() return (index += step) - step;
 }
 
-class Sprite {
-	public var width: Int;
-	public var height: Int;
-	public var pixels: Uint8ClampedArray;
-
-	public function new() {}
-}
-
 class GameCanvas {
-	var canvas: CanvasElement;
-	var buffer: CanvasElement;
-	var ctx: CanvasRenderingContext2D;
-	var bctx: CanvasRenderingContext2D;
+	private var canvas: CanvasElement;
+	private var buffer: CanvasElement;
+	private var ctx: CanvasRenderingContext2D;
+	private var bctx: CanvasRenderingContext2D;
 
-	var pixels: ImageData;
+	private var pixels: ImageData;
 
-	// ASSETS CODE
-	var imagePaths: Array<String>;
-	var images: StringMap<Sprite>;
-
-	public function loadImage(path: String) {
-		this.imagePaths.push(path);
-	}
-
-	public function getImage(path: String) {
-		return this.images.get(path);
-	}
-
-	function loadAll(onFinish: Void -> Void) {
-		if (this.imagePaths.length == 0) onFinish();
-
-		var loadedCount = 0, errCount = 0;
-		for (path in this.imagePaths) {
-			var img = new Image();
-			img.onload = function() {
-				var canvas = cast(js.Browser.document.createElement("canvas"), CanvasElement);
-				canvas.width = img.width;
-				canvas.height = img.height;
-				var ctx = canvas.getContext2d();
-				ctx.drawImage(img, 0, 0);
-
-				var spr = new Sprite();
-				spr.width = img.width;
-				spr.height = img.height;
-				spr.pixels = ctx.getImageData(0, 0, img.width, img.height).data;
-				this.images.set(path, spr);
-
-				loadedCount++;
-				if (loadedCount + errCount >= this.imagePaths.length) {
-					onFinish();
-				}
-			};
-			img.onerror = function() {
-				errCount++;
-				if (loadedCount + errCount >= imagePaths.length) {
-					onFinish();
-				}
-			};
-			img.src = path;
-		}
-	}
+	public var assets(default, null): AssetManager;
+	public var input(default, null): InputManager;
 
 	// LOGIC CODE
 	public static inline var TIME_STEP: Float = 1.0 / 60.0;
@@ -98,7 +45,7 @@ class GameCanvas {
 
 	public function start() {
 		onPreload();
-		loadAll(function() {
+		assets.loadAll(function() {
 			onInit();
 			_mainloop_(0.0);
 		});
@@ -106,22 +53,23 @@ class GameCanvas {
 
 	// RENDERING CODE
 	public function new(?target: Node) {
-		this.imagePaths = new Array();
-		this.images = new StringMap();
+		this.assets = new AssetManager();
 
-		this.canvas = cast(js.Browser.document.createElement("canvas"), CanvasElement);
-		this.buffer = cast(js.Browser.document.createElement("canvas"), CanvasElement);
+		this.canvas = cast(Browser.document.createElement("canvas"), CanvasElement);
+		this.buffer = cast(Browser.document.createElement("canvas"), CanvasElement);
+
+		this.input = new InputManager(this.canvas);
 
 		if (target == null)
-			js.Browser.document.body.appendChild(this.canvas);
+			Browser.document.body.appendChild(this.canvas);
 		else
 			target.appendChild(this.canvas);
 
 		this.canvas.width = 800;
 		this.canvas.height = 600;
 
-		this.buffer.width = cast(this.canvas.width / 4, Int);
-		this.buffer.height = cast(this.canvas.height / 4, Int);
+		this.buffer.width = cast(this.canvas.width / 2, Int);
+		this.buffer.height = cast(this.canvas.height / 2, Int);
 
 		this.ctx = this.canvas.getContext2d();
 		this.ctx.imageSmoothingEnabled = false;
@@ -186,6 +134,8 @@ class GameCanvas {
 		lastTime = currentTime;
 		accum += delta;
 
+		this.input.refresh();
+
 		while (accum >= TIME_STEP) {
 			accum -= TIME_STEP;
 			onUpdate(TIME_STEP);
@@ -194,7 +144,7 @@ class GameCanvas {
 		onDraw();
 		flip();
 
-		js.Browser.window.requestAnimationFrame(_mainloop_);
+		Browser.window.requestAnimationFrame(_mainloop_);
 	}
 
 }
