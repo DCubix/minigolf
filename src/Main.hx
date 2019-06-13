@@ -1,6 +1,7 @@
 package;
 
 import engine.GameCanvas;
+import engine.GameCanvas.MathExtensions;
 import engine.AssetManager;
 import engine.SpriteBatch;
 
@@ -10,35 +11,44 @@ class Main extends GameCanvas {
 		canvas.start();
 	}
 
-	var sprites: Sprite;
-	var sx: Float = 2;
+	var tileSet: Sprite;
+	var map: Array<Int>;
 
 	var sb: SpriteBatch;
 
 	public function new() {
 		super();
 		this.sb = new SpriteBatch();
+		this.map = new Array();
+		for (i in 0...(8 * 8)) {
+			this.map.push(Math.floor(MathExtensions.randomBetween(1, 3)));
+		}
 	}
 
 	public override function onPreload() {
-		assets.loadSprite("sprites.png");
+		assets.loadSprite("tiles.png");
 	}
 
 	public override function onInit() {
-		this.sprites = assets.getSprite("sprites.png");
+		tileSet = assets.getSprite("tiles.png");
 	}
 
 	public override function onDraw() {
 		this.clear();
-		for (i in 0...20) {
-			sb.drawTile(sprites, 8, 7,  0,  i * 2 + Math.floor(sx / (i+1)), i * 2);
+
+		var diag = Math.floor(Math.sqrt(8*8 + 8*8)) * 15;
+		for (i in 0...(8 * 8)) {
+			if (map[i] == 0) continue;
+
+			var x = (i % 8) * 16;
+			var y = Math.floor(i / 8) * 16;
+			var pos = MathExtensions.fromIso(x, y, map[i] * 8);
+			sb.drawTile(tileSet, 7, 10,  5,  pos.x - 15 + diag, pos.y + Math.floor(diag / 2));
 		}
 		sb.flush(this);
 	}
 
 	public override function onUpdate(dt: Float) {
-		if (input.isKeyHeld("d")) {
-			sx += 40.0 * dt;
-		}
+
 	}
 }

@@ -10,19 +10,19 @@ import js.html.ImageData;
 import js.Browser;
 
 class MathExtensions {
-	public static function randomBetween(cl: Class<Math>, a: Float, b: Float) {
+	public static function randomBetween(a: Float, b: Float) {
 		var diff: Float = b - a;
 		return a + Math.floor(Math.random() * diff);
 	}
 
-	public static function fromIso(cl: Class<Math>, x: Float, y: Float, z: Float) {
+	public static function fromIso(x: Float, y: Float, z: Float) {
 		return new Point(
 			Math.floor(x - y),
-			Math.floor((x + y) / 2 + z)
+			Math.floor(((x + y) / 2) + z)
 		);
 	}
 
-	public static function toIso(cl: Class<Math>, x: Int, y: Int, ?z: Float = 0.0) {
+	public static function toIso(x: Int, y: Int, ?z: Float = 0.0) {
 		return new Vector(
 			y + (x / 2.0),
 			y - (x / 2.0),

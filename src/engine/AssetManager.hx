@@ -71,12 +71,16 @@ class AssetManager {
 						if (loadedCount + errCount >= this.assets.length) {
 							onFinish();
 						}
+
+						trace("LOADED: " + ast.path);
 					};
 					img.onerror = function() {
 						errCount++;
 						if (loadedCount + errCount >= this.assets.length) {
 							onFinish();
 						}
+
+						trace("ERR: " + ast.path);
 					};
 					img.src = ast.path;
 				};

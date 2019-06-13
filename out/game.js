@@ -131,10 +131,7 @@ engine_GameCanvas.prototype = {
 		this.lastTime = currentTime;
 		this.accum += delta;
 		this.input.refresh();
-		while(this.accum >= 0.016666666666666666) {
-			this.accum -= 0.016666666666666666;
-			this.onUpdate(0.016666666666666666);
-		}
+		while(this.accum >= 0.016666666666666666) this.accum -= 0.016666666666666666;
 		this.onDraw();
 		this.flip();
 		window.requestAnimationFrame($bind(this,this._mainloop_));
@@ -142,9 +139,14 @@ engine_GameCanvas.prototype = {
 	,__class__: engine_GameCanvas
 };
 var Main = function() {
-	this.sx = 2;
 	engine_GameCanvas.call(this);
 	this.sb = new engine_SpriteBatch();
+	this.map = [];
+	var _g1 = 0;
+	while(_g1 < 64) {
+		++_g1;
+		this.map.push(Math.floor(engine_MathExtensions.randomBetween(1,3)));
+	}
 };
 Main.__name__ = true;
 Main.main = function() {
@@ -153,24 +155,26 @@ Main.main = function() {
 Main.__super__ = engine_GameCanvas;
 Main.prototype = $extend(engine_GameCanvas.prototype,{
 	onPreload: function() {
-		this.assets.loadSprite("sprites.png");
+		this.assets.loadSprite("tiles.png");
 	}
 	,onInit: function() {
-		this.sprites = this.assets.getSprite("sprites.png");
+		this.tileSet = this.assets.getSprite("tiles.png");
 	}
 	,onDraw: function() {
 		this.clear();
-		var _g = 0;
-		while(_g < 20) {
-			var i = _g++;
-			this.sb.drawTile(this.sprites,8,7,0,i * 2 + Math.floor(this.sx / (i + 1)),i * 2);
+		var diag = Math.floor(Math.sqrt(128)) * 15;
+		var _g1 = 0;
+		while(_g1 < 64) {
+			var i = _g1++;
+			if(this.map[i] == 0) {
+				continue;
+			}
+			var pos = engine_MathExtensions.fromIso(i % 8 * 16,Math.floor(i / 8) * 16,this.map[i] * 8);
+			this.sb.drawTile(this.tileSet,7,10,5,pos.x - 15 + diag,pos.y + Math.floor(diag / 2));
 		}
 		this.sb.flush(this);
 	}
 	,onUpdate: function(dt) {
-		if(this.input.isKeyHeld("d")) {
-			this.sx += 40.0 * dt;
-		}
 	}
 	,__class__: Main
 });
@@ -249,20 +253,36 @@ engine_AssetManager.prototype = {
 					if(loadedCount + errCount >= _gthis.assets.length) {
 						onFinish();
 					}
+					console.log("LOADED: " + ast1[0].path);
 				};
 			})(img,ast);
-			img[0].onerror = (function() {
+			img[0].onerror = (function(ast2) {
 				return function() {
 					errCount += 1;
 					if(loadedCount + errCount >= _gthis.assets.length) {
 						onFinish();
 					}
+					console.log("ERR: " + ast2[0].path);
 				};
-			})();
+			})(ast);
 			img[0].src = ast[0].path;
 		}
 	}
 	,__class__: engine_AssetManager
+};
+var engine_MathExtensions = function() { };
+engine_MathExtensions.__name__ = true;
+engine_MathExtensions.randomBetween = function(a,b) {
+	return a + Math.floor(Math.random() * (b - a));
+};
+engine_MathExtensions.fromIso = function(x,y,z) {
+	return new engine_Point(Math.floor(x - y),Math.floor((x + y) / 2 + z));
+};
+engine_MathExtensions.toIso = function(x,y,z) {
+	if(z == null) {
+		z = 0.0;
+	}
+	return new engine_Vector(y + x / 2.0,y - x / 2.0,z);
 };
 var engine_Range = function(start,end,step) {
 	this.index = start;
@@ -521,6 +541,48 @@ engine_SpriteBatch.prototype = {
 		while(this.commands.length > 0) this.commands.pop();
 	}
 	,__class__: engine_SpriteBatch
+};
+var engine_Point = function(x,y) {
+	this.x = x;
+	this.y = y;
+};
+engine_Point.__name__ = true;
+engine_Point.prototype = {
+	__class__: engine_Point
+};
+var engine_Vector = function(x,y,z) {
+	if(z == null) {
+		z = 0.0;
+	}
+	this.x = x;
+	this.y = y;
+	this.z = z;
+};
+engine_Vector.__name__ = true;
+engine_Vector.prototype = {
+	dot: function(rhs) {
+		return this.x * rhs.x + this.y * rhs.y + this.z + rhs.z;
+	}
+	,cross: function(rhs) {
+		return new engine_Vector(this.y * rhs.z - this.z * rhs.y,this.z * rhs.x - this.x * rhs.z,this.x * rhs.y - this.y * rhs.x);
+	}
+	,normalized: function() {
+		var len = this.get_length();
+		return new engine_Vector(this.x / len,this.y / len,this.z / len);
+	}
+	,get_length: function() {
+		return Math.sqrt(this.dot(this));
+	}
+	,add: function(rhs) {
+		return new engine_Vector(this.x + rhs.x,this.y + rhs.y,this.z + rhs.z);
+	}
+	,sub: function(rhs) {
+		return new engine_Vector(this.x + rhs.x,this.y + rhs.y,this.z + rhs.z);
+	}
+	,mul: function(rhs) {
+		return new engine_Vector(this.x + rhs,this.y + rhs,this.z + rhs);
+	}
+	,__class__: engine_Vector
 };
 var haxe_IMap = function() { };
 haxe_IMap.__name__ = true;
