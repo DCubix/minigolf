@@ -131,7 +131,10 @@ engine_GameCanvas.prototype = {
 		this.lastTime = currentTime;
 		this.accum += delta;
 		this.input.refresh();
-		while(this.accum >= 0.016666666666666666) this.accum -= 0.016666666666666666;
+		while(this.accum >= 0.016666666666666666) {
+			this.accum -= 0.016666666666666666;
+			this.onUpdate(0.016666666666666666);
+		}
 		this.onDraw();
 		this.flip();
 		window.requestAnimationFrame($bind(this,this._mainloop_));
@@ -141,12 +144,11 @@ engine_GameCanvas.prototype = {
 var Main = function() {
 	engine_GameCanvas.call(this);
 	this.sb = new engine_SpriteBatch();
-	this.map = [];
-	var _g1 = 0;
-	while(_g1 < 64) {
-		++_g1;
-		this.map.push(Math.floor(engine_MathExtensions.randomBetween(1,3)));
-	}
+	this.flagAnim = new engine_Animator();
+	this.flagAnim.add("loop",[49,50,51,52]);
+	this.flagAnim.play("loop",0.1,true);
+	this.map = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,15,15,21,0,0,0,0,0,0,0,0,14,47,0,17,0,0,0,0,0,0,0,0,14,0,0,17,0,0,0,0,0,0,0,0,20,18,18,19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+	this.mapPrint(this.map,12);
 };
 Main.__name__ = true;
 Main.main = function() {
@@ -154,7 +156,27 @@ Main.main = function() {
 };
 Main.__super__ = engine_GameCanvas;
 Main.prototype = $extend(engine_GameCanvas.prototype,{
-	onPreload: function() {
+	mapGet: function(x,y) {
+		if(x < 0 || x >= 12 || y < 0 || y >= 12) {
+			return 0;
+		}
+		return this.map[x + y * 12];
+	}
+	,mapPrint: function(map,sz) {
+		var dmap = [];
+		var _g1 = 0;
+		var _g = sz;
+		while(_g1 < _g) {
+			var y = _g1++;
+			var row = [];
+			var _g3 = 0;
+			var _g2 = sz;
+			while(_g3 < _g2) row.push(map[_g3++ + y * sz]);
+			dmap.push(row);
+		}
+		window.console.table(dmap);
+	}
+	,onPreload: function() {
 		this.assets.loadSprite("tiles.png");
 	}
 	,onInit: function() {
@@ -162,19 +184,22 @@ Main.prototype = $extend(engine_GameCanvas.prototype,{
 	}
 	,onDraw: function() {
 		this.clear();
-		var diag = Math.floor(Math.sqrt(128)) * 15;
+		var diag = Math.floor(Math.sqrt(288)) * 11;
 		var _g1 = 0;
-		while(_g1 < 64) {
+		while(_g1 < 144) {
 			var i = _g1++;
-			if(this.map[i] == 0) {
-				continue;
+			var tile = this.map[i];
+			var pos = engine_MathExtensions.fromIso(i % 12 * 16,Math.floor(i / 12) * 16,0);
+			if(tile != -1) {
+				this.sb.drawTile(this.tileSet,7,10,tile,pos.x + diag,pos.y + Math.floor(diag / 2) - 16);
 			}
-			var pos = engine_MathExtensions.fromIso(i % 8 * 16,Math.floor(i / 8) * 16,this.map[i] * 8);
-			this.sb.drawTile(this.tileSet,7,10,5,pos.x - 15 + diag,pos.y + Math.floor(diag / 2));
 		}
-		this.sb.flush(this);
+		this.sb.drawTile(this.tileSet,7,10,this.flagAnim.currentFrame,20,20);
+		this.sb.drawTile(this.tileSet,7,10,this.flagAnim.currentFrame + 4,20,52);
+		this.sb.flush(this,engine_Sorting.Y_SORT);
 	}
 	,onUpdate: function(dt) {
+		this.flagAnim.update(dt);
 	}
 	,__class__: Main
 });
@@ -183,6 +208,70 @@ var Std = function() { };
 Std.__name__ = true;
 Std.string = function(s) {
 	return js_Boot.__string_rec(s,"");
+};
+var engine_Animation = function() {
+};
+engine_Animation.__name__ = true;
+engine_Animation.prototype = {
+	__class__: engine_Animation
+};
+var engine_Animator = function() {
+	this.currentFrame = 0;
+	this.animations = new haxe_ds_StringMap();
+	this.currentAnimation = "";
+};
+engine_Animator.__name__ = true;
+engine_Animator.prototype = {
+	add: function(name,frames) {
+		var anim = new engine_Animation();
+		anim.frames = frames == null ? [] : frames;
+		anim.loop = false;
+		anim.speed = 0;
+		anim.frame = 0;
+		anim.time = 0;
+		var _this = this.animations;
+		if(__map_reserved[name] != null) {
+			_this.setReserved(name,anim);
+		} else {
+			_this.h[name] = anim;
+		}
+		if(this.currentAnimation.length == 0) {
+			this.currentAnimation = name;
+		}
+	}
+	,play: function(name,speed,loop) {
+		if(loop == null) {
+			loop = true;
+		}
+		var _this = this.animations;
+		var anim = __map_reserved[name] != null ? _this.getReserved(name) : _this.h[name];
+		anim.speed = speed;
+		anim.loop = loop;
+		anim.frame = 0;
+		this.currentAnimation = name;
+	}
+	,update: function(dt) {
+		if(this.currentAnimation.length == 0) {
+			return;
+		}
+		var _this = this.animations;
+		var key = this.currentAnimation;
+		var anim = __map_reserved[key] != null ? _this.getReserved(key) : _this.h[key];
+		var frameCount = anim.frames.length;
+		anim.time += dt;
+		if(anim.time >= anim.speed) {
+			anim.time = 0;
+			if(anim.frame++ >= frameCount - 1) {
+				if(anim.loop) {
+					anim.frame = 0;
+				} else {
+					anim.frame = frameCount - 1;
+				}
+			}
+		}
+		this.currentFrame = anim.frames[anim.frame];
+	}
+	,__class__: engine_Animator
 };
 var engine_AssetType = { __ename__ : true, __constructs__ : ["ASSET_SPRITE"] };
 engine_AssetType.ASSET_SPRITE = ["ASSET_SPRITE",0];
@@ -276,7 +365,7 @@ engine_MathExtensions.randomBetween = function(a,b) {
 	return a + Math.floor(Math.random() * (b - a));
 };
 engine_MathExtensions.fromIso = function(x,y,z) {
-	return new engine_Point(Math.floor(x - y),Math.floor((x + y) / 2 + z));
+	return new engine_Point(Math.floor(x - y),Math.floor((x + y) / 2 - z));
 };
 engine_MathExtensions.toIso = function(x,y,z) {
 	if(z == null) {
@@ -905,6 +994,7 @@ var Class = { __name__ : ["Class"]};
 var Enum = { };
 var __map_reserved = {};
 engine_GameCanvas.TIME_STEP = 0.016666666666666666;
+Main.MAP_SIZE = 12;
 js_Boot.__toStr = ({ }).toString;
 Main.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);

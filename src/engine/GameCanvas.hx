@@ -18,7 +18,7 @@ class MathExtensions {
 	public static function fromIso(x: Float, y: Float, z: Float) {
 		return new Point(
 			Math.floor(x - y),
-			Math.floor(((x + y) / 2) + z)
+			Math.floor(((x + y) / 2) - z)
 		);
 	}
 
