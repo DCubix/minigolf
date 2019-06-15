@@ -57,6 +57,12 @@ class GameCanvas {
 	public var assets(default, null): AssetManager;
 	public var input(default, null): InputManager;
 
+	function get_width() { return this.buffer.width; }
+	function get_height() { return this.buffer.height; }
+
+	public var width(get_width, null): Int;
+	public var height(get_height, null): Int;
+
 	// LOGIC CODE
 	public static inline var TIME_STEP: Float = 1.0 / 60.0;
 	var lastTime: Float = haxe.Timer.stamp();
@@ -136,6 +142,34 @@ class GameCanvas {
 		var sx: Int = (index % cols) * sw;
 		var sy: Int = cast(Math.floor(index / cols) * sh, Int);
 		sprite(spr, x, y, sx, sy, sw, sh);
+	}
+
+	public function text(font: Sprite, charMap: String, text: String, x: Int, y: Int) {
+		var vertical = font.height > font.width;
+		var tx = x;
+		var ty = y;
+		var ch = !vertical ? font.height : Math.floor(font.height / charMap.length);
+
+		for (i in 0...text.length) {
+			var c = text.charAt(i);
+			if (c == '\n') {
+				tx = x;
+				ty += ch;
+			} else {
+				tx = char(font, charMap, c, tx, ty);
+			}
+		}
+	}
+
+	public function char(font: Sprite, charMap: String, c: String, x: Int, y: Int) : Int {
+		var vertical = font.height > font.width;
+		var cw = !vertical ? Math.floor(font.width / charMap.length) : font.width;
+		//var ch = !vertical ? font.height : Math.floor(font.height / charMap.length);
+
+		var index = charMap.indexOf(c);
+		tile(font, vertical ? 1 : charMap.length, vertical ? charMap.length : 1, index, x, y);
+
+		return x + cw;
 	}
 
 	public function clear(?r: Int = 0, ?g: Int = 0, ?b: Int = 0) {

@@ -23,11 +23,11 @@ class Vector {
 		this.z = z;
 	}
 
-	public function dot(rhs: Vector) {
+	public function dot(rhs: Vector) : Float {
 		return this.x * rhs.x + this.y * rhs.y + this.z + rhs.z;
 	}
 
-	public function cross(rhs: Vector) {
+	public function cross(rhs: Vector) : Vector {
 		return new Vector(
 			this.y * rhs.z - this.z * rhs.y,
 			this.z * rhs.x - this.x * rhs.z,
@@ -35,7 +35,7 @@ class Vector {
 		);
 	}
 
-	public function normalized() {
+	public function normalized() : Vector {
 		var len = this.length;
 		return new Vector(this.x / len, this.y / len, this.z / len);
 	}
@@ -43,7 +43,7 @@ class Vector {
 	function get_length() { return Math.sqrt(this.dot(this)); }
 
 	@:op(A + B)
-	public function add(rhs: Vector) {
+	public function add(rhs: Vector) : Vector {
 		return new Vector(
 			this.x + rhs.x,
 			this.y + rhs.y,
@@ -52,21 +52,25 @@ class Vector {
 	}
 
 	@:op(A - B)
-	public function sub(rhs: Vector) {
+	public function sub(rhs: Vector) : Vector {
 		return new Vector(
-			this.x + rhs.x,
-			this.y + rhs.y,
-			this.z + rhs.z
+			this.x - rhs.x,
+			this.y - rhs.y,
+			this.z - rhs.z
 		);
 	}
 
 	@:op(A * B)
-	public function mul(rhs: Float) {
+	public function mul(rhs: Float) : Vector {
 		return new Vector(
-			this.x + rhs,
-			this.y + rhs,
-			this.z + rhs
+			this.x * rhs,
+			this.y * rhs,
+			this.z * rhs
 		);
+	}
+
+	public function clone() : Vector {
+		return new Vector(x, y, z);
 	}
 
 }

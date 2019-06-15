@@ -24,6 +24,12 @@ class Animator {
 		this.currentAnimation = "";
 	}
 
+	public function reset() {
+		this.animations = new StringMap();
+		this.currentAnimation = "";
+		this.currentFrame = 0;
+	}
+
 	public function add(name: String, ?frames: Array<Int>) {
 		var anim = new Animation();
 		anim.frames = frames == null ? [] : frames;

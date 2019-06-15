@@ -15,6 +15,8 @@ enum Sorting {
 class DrawCommand {
 	public var x: Int;
 	public var y: Int;
+	public var ox: Int;
+	public var oy: Int;
 	public var drawType: DrawType;
 
 	public var sprite: Sprite;
@@ -51,11 +53,13 @@ class SpriteBatch {
 		this.commands.push(cmd);
 	}
 
-	public function drawTile(spr: Sprite, cols: Int, rows: Int, index: Int, x: Int, y: Int) {
+	public function drawTile(spr: Sprite, cols: Int, rows: Int, index: Int, x: Int, y: Int, ?ox: Int = 0, ?oy: Int = 0) {
 		var cmd = new DrawCommand();
 		cmd.drawType = DrawType.TILE;
 		cmd.x = x;
 		cmd.y = y;
+		cmd.ox = ox;
+		cmd.oy = oy;
 		cmd.sprite = spr;
 		cmd.tileIndex = index;
 		cmd.cols = cols;
@@ -68,8 +72,8 @@ class SpriteBatch {
 			default:
 			case Y_SORT:
 				this.commands.sort(function(a: DrawCommand, b: DrawCommand) {
-					if (a.y == b.y) return 0;
-					return a.y > b.y ? 1 : -1;
+					if (a.y + a.oy == b.y + b.oy) return 0;
+					return a.y + a.oy > b.y + b.oy ? 1 : -1;
 				});
 		}
 		if (reverse) {
@@ -79,7 +83,7 @@ class SpriteBatch {
 		for (cmd in this.commands) {
 			switch (cmd.drawType) {
 				case SPRITE: canvas.sprite(cmd.sprite, cmd.x, cmd.y, cmd.sx, cmd.sy, cmd.sw, cmd.sh);
-				case TILE: canvas.tile(cmd.sprite, cmd.cols, cmd.rows, cmd.tileIndex, cmd.x, cmd.y);
+				case TILE: canvas.tile(cmd.sprite, cmd.cols, cmd.rows, cmd.tileIndex, cmd.x - cmd.ox, cmd.y - cmd.oy);
 			}
 		}
 		while (this.commands.length > 0)

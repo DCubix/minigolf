@@ -39,7 +39,13 @@ var engine_GameCanvas = function(target) {
 };
 engine_GameCanvas.__name__ = true;
 engine_GameCanvas.prototype = {
-	onPreload: function() {
+	get_width: function() {
+		return this.buffer.width;
+	}
+	,get_height: function() {
+		return this.buffer.height;
+	}
+	,onPreload: function() {
 	}
 	,onInit: function() {
 	}
@@ -100,6 +106,29 @@ engine_GameCanvas.prototype = {
 		var sh = Math.floor(spr.height / rows);
 		this.sprite(spr,x,y,index % cols * sw,js_Boot.__cast(Math.floor(index / cols) * sh , Int),sw,sh);
 	}
+	,text: function(font,charMap,text,x,y) {
+		var tx = x;
+		var ty = y;
+		var ch = font.height <= font.width ? font.height : Math.floor(font.height / charMap.length);
+		var _g1 = 0;
+		var _g = text.length;
+		while(_g1 < _g) {
+			var c = text.charAt(_g1++);
+			if(c == "\n") {
+				tx = x;
+				ty += ch;
+			} else {
+				tx = this["char"](font,charMap,c,tx,ty);
+			}
+		}
+	}
+	,'char': function(font,charMap,c,x,y) {
+		var vertical = font.height > font.width;
+		var cw = !vertical ? Math.floor(font.width / charMap.length) : font.width;
+		var index = charMap.indexOf(c);
+		this.tile(font,vertical ? 1 : charMap.length,vertical ? charMap.length : 1,index,x,y);
+		return x + cw;
+	}
 	,clear: function(r,g,b) {
 		if(b == null) {
 			b = 0;
@@ -144,10 +173,9 @@ engine_GameCanvas.prototype = {
 var Main = function() {
 	engine_GameCanvas.call(this);
 	this.sb = new engine_SpriteBatch();
-	this.flagAnim = new engine_Animator();
-	this.flagAnim.add("loop",[49,50,51,52]);
-	this.flagAnim.play("loop",0.1,true);
-	this.map = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,15,15,21,0,0,0,0,0,0,0,0,14,47,0,17,0,0,0,0,0,0,0,0,14,0,0,17,0,0,0,0,0,0,0,0,20,18,18,19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+	this.camera = new engine_Vector(0,0,0);
+	this.entities = [];
+	this.map = [16,15,15,15,15,15,15,15,15,15,15,21,14,0,0,0,0,0,0,0,0,0,0,17,14,0,16,15,15,21,0,0,0,0,0,17,14,0,14,47,0,17,0,0,0,0,0,17,14,0,14,0,0,17,0,0,0,0,0,17,14,0,20,18,18,19,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,20,18,18,18,18,18,18,18,18,18,18,19];
 	this.mapPrint(this.map,12);
 };
 Main.__name__ = true;
@@ -158,7 +186,7 @@ Main.__super__ = engine_GameCanvas;
 Main.prototype = $extend(engine_GameCanvas.prototype,{
 	mapGet: function(x,y) {
 		if(x < 0 || x >= 12 || y < 0 || y >= 12) {
-			return 0;
+			return -1;
 		}
 		return this.map[x + y * 12];
 	}
@@ -178,28 +206,57 @@ Main.prototype = $extend(engine_GameCanvas.prototype,{
 	}
 	,onPreload: function() {
 		this.assets.loadSprite("tiles.png");
+		this.assets.loadSprite("font.png");
 	}
 	,onInit: function() {
 		this.tileSet = this.assets.getSprite("tiles.png");
+		this.font = this.assets.getSprite("font.png");
+		this.ball = new game_Entity();
+		this.entities.push(this.ball);
+		this.ball.position.z = 64;
 	}
 	,onDraw: function() {
 		this.clear();
-		var diag = Math.floor(Math.sqrt(288)) * 11;
+		var camX = this.camera.x - this.get_width() / 2 + 16;
+		var camY = this.camera.y - this.get_height() / 2 + 16;
 		var _g1 = 0;
 		while(_g1 < 144) {
 			var i = _g1++;
 			var tile = this.map[i];
 			var pos = engine_MathExtensions.fromIso(i % 12 * 16,Math.floor(i / 12) * 16,0);
 			if(tile != -1) {
-				this.sb.drawTile(this.tileSet,7,10,tile,pos.x + diag,pos.y + Math.floor(diag / 2) - 16);
+				this.sb.drawTile(this.tileSet,7,10,tile,Math.floor(pos.x - camX),Math.floor(pos.y - camY));
 			}
 		}
-		this.sb.drawTile(this.tileSet,7,10,this.flagAnim.currentFrame,20,20);
-		this.sb.drawTile(this.tileSet,7,10,this.flagAnim.currentFrame + 4,20,52);
+		var ballPos = engine_MathExtensions.fromIso(this.ball.position.x,this.ball.position.y,this.ball.position.z);
+		var ballSPos = engine_MathExtensions.fromIso(this.ball.position.x,this.ball.position.y,0);
+		this.sb.drawTile(this.tileSet,7,10,57,Math.floor(ballPos.x - camX),Math.floor(ballPos.y - camY),16,18);
+		this.sb.drawTile(this.tileSet,7,10,58,Math.floor(ballSPos.x - camX),Math.floor(ballSPos.y - camY),16,14);
 		this.sb.flush(this,engine_Sorting.Y_SORT);
+		this.text(this.font," !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ","Z: " + this.ball.position.z,2,2);
+		this.text(this.font," !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ","VX: " + this.ball.velocity.x,2,10);
+		this.text(this.font," !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ","AX: " + this.ball.accel.x,2,18);
 	}
 	,onUpdate: function(dt) {
-		this.flagAnim.update(dt);
+		if(this.input.isKeyHeld("a")) {
+			this.ball.accel.x += 200.0 * dt;
+		}
+		var _g = 0;
+		var _g1 = this.entities;
+		while(_g < _g1.length) {
+			var ent = _g1[_g];
+			++_g;
+			ent.velocity = ent.velocity.add(ent.accel.mul(dt)).mul(0.99);
+			ent.velocity.z -= 100.0 * dt;
+			ent.position = ent.position.add(ent.velocity.mul(dt));
+			ent.accel = ent.accel.mul(0.99);
+			if(ent.accel.get_length() <= 1e-5) {
+				ent.accel.x = ent.accel.y = ent.accel.z = 0.0;
+			}
+			if(this.mapGet(Math.floor(ent.position.x / 16),Math.floor(ent.position.y / 16)) != -1 && ent.position.z <= 0) {
+				ent.velocity.z *= -1;
+			}
+		}
 	}
 	,__class__: Main
 });
@@ -222,7 +279,12 @@ var engine_Animator = function() {
 };
 engine_Animator.__name__ = true;
 engine_Animator.prototype = {
-	add: function(name,frames) {
+	reset: function() {
+		this.animations = new haxe_ds_StringMap();
+		this.currentAnimation = "";
+		this.currentFrame = 0;
+	}
+	,add: function(name,frames) {
 		var anim = new engine_Animation();
 		anim.frames = frames == null ? [] : frames;
 		anim.loop = false;
@@ -581,11 +643,19 @@ engine_SpriteBatch.prototype = {
 		cmd.sh = sh;
 		this.commands.push(cmd);
 	}
-	,drawTile: function(spr,cols,rows,index,x,y) {
+	,drawTile: function(spr,cols,rows,index,x,y,ox,oy) {
+		if(oy == null) {
+			oy = 0;
+		}
+		if(ox == null) {
+			ox = 0;
+		}
 		var cmd = new engine_DrawCommand();
 		cmd.drawType = engine_DrawType.TILE;
 		cmd.x = x;
 		cmd.y = y;
+		cmd.ox = ox;
+		cmd.oy = oy;
 		cmd.sprite = spr;
 		cmd.tileIndex = index;
 		cmd.cols = cols;
@@ -599,10 +669,10 @@ engine_SpriteBatch.prototype = {
 		if(sorting != null) {
 			if(sorting[1] == 0) {
 				this.commands.sort(function(a,b) {
-					if(a.y == b.y) {
+					if(a.y + a.oy == b.y + b.oy) {
 						return 0;
 					}
-					if(a.y > b.y) {
+					if(a.y + a.oy > b.y + b.oy) {
 						return 1;
 					} else {
 						return -1;
@@ -623,7 +693,7 @@ engine_SpriteBatch.prototype = {
 				canvas.sprite(cmd.sprite,cmd.x,cmd.y,cmd.sx,cmd.sy,cmd.sw,cmd.sh);
 				break;
 			case 1:
-				canvas.tile(cmd.sprite,cmd.cols,cmd.rows,cmd.tileIndex,cmd.x,cmd.y);
+				canvas.tile(cmd.sprite,cmd.cols,cmd.rows,cmd.tileIndex,cmd.x - cmd.ox,cmd.y - cmd.oy);
 				break;
 			}
 		}
@@ -666,12 +736,24 @@ engine_Vector.prototype = {
 		return new engine_Vector(this.x + rhs.x,this.y + rhs.y,this.z + rhs.z);
 	}
 	,sub: function(rhs) {
-		return new engine_Vector(this.x + rhs.x,this.y + rhs.y,this.z + rhs.z);
+		return new engine_Vector(this.x - rhs.x,this.y - rhs.y,this.z - rhs.z);
 	}
 	,mul: function(rhs) {
-		return new engine_Vector(this.x + rhs,this.y + rhs,this.z + rhs);
+		return new engine_Vector(this.x * rhs,this.y * rhs,this.z * rhs);
+	}
+	,clone: function() {
+		return new engine_Vector(this.x,this.y,this.z);
 	}
 	,__class__: engine_Vector
+};
+var game_Entity = function() {
+	this.position = new engine_Vector(0,0);
+	this.velocity = new engine_Vector(0,0);
+	this.accel = new engine_Vector(0,0);
+};
+game_Entity.__name__ = true;
+game_Entity.prototype = {
+	__class__: game_Entity
 };
 var haxe_IMap = function() { };
 haxe_IMap.__name__ = true;
@@ -995,6 +1077,8 @@ var Enum = { };
 var __map_reserved = {};
 engine_GameCanvas.TIME_STEP = 0.016666666666666666;
 Main.MAP_SIZE = 12;
+Main.BALL_SPRITE = 57;
+Main.CHAR_MAP = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 js_Boot.__toStr = ({ }).toString;
 Main.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);

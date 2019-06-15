@@ -1,5 +1,6 @@
 -cp src
 -D analyzer-optimize
+-D source-map-content
 -main Main
 
 -js out/game.js
