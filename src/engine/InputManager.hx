@@ -24,6 +24,8 @@ class InputManager {
 	public var mouseX(default, null): Int = 0;
 	public var mouseY(default, null): Int = 0;
 
+	public var active(default, null): Bool = true;
+
 	public function new(canvas: CanvasElement) {
 		this.keyboard = new StringMap();
 		this.mouse = new IntMap();
@@ -72,6 +74,9 @@ class InputManager {
 		};
 
 		canvas.oncontextmenu = function() return false;
+
+		Browser.window.onfocus = function() active = true;
+		Browser.window.onblur = function() active = false;
 
 	}
 

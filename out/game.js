@@ -61,6 +61,53 @@ engine_GameCanvas.prototype = {
 			_gthis._mainloop_(0.0);
 		});
 	}
+	,tri: function(spr,v0,v1,v2,r,g,b) {
+		if(b == null) {
+			b = 255;
+		}
+		if(g == null) {
+			g = 255;
+		}
+		if(r == null) {
+			r = 255;
+		}
+		var minX = Math.floor(Math.min(Math.min(v0.x,v1.x),v2.x));
+		var maxX = Math.ceil(Math.max(Math.max(v0.x,v1.x),v2.x));
+		var minY = Math.floor(Math.min(Math.min(v0.y,v1.y),v2.y));
+		var maxY = Math.ceil(Math.max(Math.max(v0.y,v1.y),v2.y));
+		var _g1 = minY;
+		var _g = maxY;
+		while(_g1 < _g) {
+			var y = _g1++;
+			var _g3 = minX;
+			var _g2 = maxX;
+			while(_g3 < _g2) {
+				var x = _g3++;
+				var px = x + 0.5;
+				var py = y + 0.5;
+				var w0 = this.cross(v1,v2,px,py);
+				var w1 = this.cross(v2,v0,px,py);
+				var w2 = this.cross(v0,v1,px,py);
+				var area = this.cross(v0,v1,v2.x,v2.y);
+				if(w0 >= 1e-5 || w1 >= 1e-5 || w2 >= 1e-5) {
+					continue;
+				}
+				if(spr != null) {
+					var u = (w0 * v0.u + w1 * v1.u + w2 * v2.u) / area;
+					var v = (w0 * v0.v + w1 * v1.v + w2 * v2.v) / area;
+					var tx = Math.floor(this.fmod(u,1.0) * (spr.width - 1));
+					var ty = Math.floor(this.fmod(v,1.0) * (spr.height - 1));
+					var idx = (tx + ty * spr.width) * 4;
+					var tr = spr.pixels[idx];
+					var tg = spr.pixels[idx + 1];
+					var tb = spr.pixels[idx + 2];
+					this.dot(x,y,tr,tg,tb);
+				} else {
+					this.dot(x,y,r,g,b);
+				}
+			}
+		}
+	}
 	,dot: function(x,y,r,g,b) {
 		if(x < 0 || x >= this.buffer.width || y < 0 || y >= this.buffer.height) {
 			return;
@@ -85,35 +132,42 @@ engine_GameCanvas.prototype = {
 			sx = 0;
 		}
 		var w = sw > 0 ? sw : spr.width;
+		var h = sh > 0 ? sh : spr.height;
 		var _g1 = 0;
-		var _g = sh > 0 ? sh : spr.height;
+		var _g = h;
 		while(_g1 < _g) {
 			var iy = _g1++;
 			var _g3 = 0;
 			var _g2 = w;
 			while(_g3 < _g2) {
 				var ix = _g3++;
+				var px = ix + x;
+				var py = iy + y;
 				var si = (ix + sx + (iy + sy) * spr.width) * 4;
 				if(spr.pixels[si + 3] < 200) {
 					continue;
 				}
-				this.dot(ix + x,iy + y,spr.pixels[si],spr.pixels[si + 1],spr.pixels[si + 2]);
+				this.dot(px,py,spr.pixels[si],spr.pixels[si + 1],spr.pixels[si + 2]);
 			}
 		}
 	}
 	,tile: function(spr,cols,rows,index,x,y) {
 		var sw = Math.floor(spr.width / cols);
 		var sh = Math.floor(spr.height / rows);
-		this.sprite(spr,x,y,index % cols * sw,js_Boot.__cast(Math.floor(index / cols) * sh , Int),sw,sh);
+		var sx = index % cols * sw;
+		var sy = js_Boot.__cast(Math.floor(index / cols) * sh , Int);
+		this.sprite(spr,x,y,sx,sy,sw,sh);
 	}
 	,text: function(font,charMap,text,x,y) {
+		var vertical = font.height > font.width;
 		var tx = x;
 		var ty = y;
-		var ch = font.height <= font.width ? font.height : Math.floor(font.height / charMap.length);
+		var ch = !vertical ? font.height : Math.floor(font.height / charMap.length);
 		var _g1 = 0;
 		var _g = text.length;
 		while(_g1 < _g) {
-			var c = text.charAt(_g1++);
+			var i = _g1++;
+			var c = text.charAt(i);
 			if(c == "\n") {
 				tx = x;
 				ty += ch;
@@ -139,11 +193,14 @@ engine_GameCanvas.prototype = {
 		if(r == null) {
 			r = 0;
 		}
+		var _g_step;
 		var _g_index;
-		var end = this.buffer.width * this.buffer.height * 4;
+		var _g_end;
 		_g_index = 0;
-		while(_g_index < end) {
-			var i = (_g_index += 4) - 4;
+		_g_end = this.buffer.width * this.buffer.height * 4;
+		_g_step = 4;
+		while(_g_index < _g_end) {
+			var i = (_g_index += _g_step) - _g_step;
 			this.pixels.data[i] = r;
 			this.pixels.data[i + 1] = g;
 			this.pixels.data[i + 2] = b;
@@ -159,36 +216,146 @@ engine_GameCanvas.prototype = {
 		var delta = currentTime - this.lastTime;
 		this.lastTime = currentTime;
 		this.accum += delta;
-		this.input.refresh();
 		while(this.accum >= 0.016666666666666666) {
 			this.accum -= 0.016666666666666666;
-			this.onUpdate(0.016666666666666666);
+			if(this.input.active) {
+				this.onUpdate(0.016666666666666666);
+			}
 		}
-		this.onDraw();
-		this.flip();
+		this.input.refresh();
+		if(this.input.active) {
+			this.onDraw();
+			this.flip();
+		}
 		window.requestAnimationFrame($bind(this,this._mainloop_));
+	}
+	,cross: function(a,b,cx,cy) {
+		return (b.x - a.x) * -(cy - a.y) - -(b.y - a.y) * (cx - a.x);
+	}
+	,fmod: function(a,b) {
+		if(a < 0.0) {
+			a += b;
+		}
+		return a % b;
 	}
 	,__class__: engine_GameCanvas
 };
 var Main = function() {
+	this.time = 0.0;
 	engine_GameCanvas.call(this);
 	this.sb = new engine_SpriteBatch();
-	this.camera = new engine_Vector(0,0,0);
+	this.camera = new engine_Vector(0,64);
+	this.im = new engine_Vector(0,0);
 	this.entities = [];
-	this.map = [16,15,15,15,15,15,15,15,15,15,15,21,14,0,0,0,0,0,0,0,0,0,0,17,14,0,16,15,15,21,0,0,0,0,0,17,14,0,14,47,0,17,0,0,0,0,0,17,14,0,14,0,0,17,0,0,0,0,0,17,14,0,20,18,18,19,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,14,0,0,0,0,0,0,0,0,0,0,17,20,18,18,18,18,18,18,18,18,18,18,19];
+	this.map = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+	this.dmap = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+	var _g1 = 0;
+	var _g = this.map.length;
+	while(_g1 < _g) {
+		var i = _g1++;
+		this.map[i] = Math.floor(engine_MathExtensions.randomBetween(0,5));
+	}
+	this.mapSmooth();
 	this.mapPrint(this.map,12);
+	var _g2 = 0;
+	while(_g2 < 12) {
+		var y = _g2++;
+		var _g11 = 0;
+		while(_g11 < 12) {
+			var x = _g11++;
+			var a = this.mapGet(x,y);
+			var b = this.mapGet(x + 1,y);
+			var c = this.mapGet(x + 1,y + 1);
+			var d = this.mapGet(x,y + 1);
+			var minH = a;
+			var maxH = a;
+			if(b < minH) {
+				minH = b;
+			} else {
+				minH = minH;
+			}
+			if(c < minH) {
+				minH = c;
+			} else {
+				minH = minH;
+			}
+			if(d < minH) {
+				minH = d;
+			} else {
+				minH = minH;
+			}
+			if(b > maxH) {
+				maxH = b;
+			} else {
+				maxH = maxH;
+			}
+			if(c > maxH) {
+				maxH = c;
+			} else {
+				maxH = maxH;
+			}
+			if(d > maxH) {
+				maxH = d;
+			} else {
+				maxH = maxH;
+			}
+			a -= minH;
+			b -= minH;
+			c -= minH;
+			d -= minH;
+			var t = (d << 6) + (c << 4) + (b << 2) + a;
+			this.dmap[x + y * 12] = t;
+		}
+	}
+	this.mapPrint(this.dmap,12);
 };
 Main.__name__ = true;
 Main.main = function() {
-	new Main().start();
+	var canvas = new Main();
+	canvas.start();
 };
 Main.__super__ = engine_GameCanvas;
 Main.prototype = $extend(engine_GameCanvas.prototype,{
 	mapGet: function(x,y) {
 		if(x < 0 || x >= 12 || y < 0 || y >= 12) {
-			return -1;
+			return 0;
 		}
 		return this.map[x + y * 12];
+	}
+	,mapSet: function(x,y,v) {
+		if(x < 0 || x >= 12 || y < 0 || y >= 12) {
+			return;
+		}
+		this.map[x + y * 12] = v;
+	}
+	,mapSmooth: function() {
+		var _g = 0;
+		while(_g < 12) {
+			var y = _g++;
+			var _g1 = 0;
+			while(_g1 < 12) {
+				var x = _g1++;
+				var mat = [];
+				var _g2 = -1;
+				while(_g2 < 2) {
+					var oy = _g2++;
+					var _g3 = -1;
+					while(_g3 < 2) {
+						var ox = _g3++;
+						mat.push(this.mapGet(x + ox,y + oy));
+					}
+				}
+				var sum = 0.0;
+				var _g21 = 0;
+				while(_g21 < mat.length) {
+					var v = mat[_g21];
+					++_g21;
+					sum += v;
+				}
+				sum /= 9;
+				this.map[x + y * 12] = Math.floor(sum);
+			}
+		}
 	}
 	,mapPrint: function(map,sz) {
 		var dmap = [];
@@ -199,7 +366,10 @@ Main.prototype = $extend(engine_GameCanvas.prototype,{
 			var row = [];
 			var _g3 = 0;
 			var _g2 = sz;
-			while(_g3 < _g2) row.push(map[_g3++ + y * sz]);
+			while(_g3 < _g2) {
+				var x = _g3++;
+				row.push(map[x + y * sz]);
+			}
 			dmap.push(row);
 		}
 		window.console.table(dmap);
@@ -211,52 +381,139 @@ Main.prototype = $extend(engine_GameCanvas.prototype,{
 	,onInit: function() {
 		this.tileSet = this.assets.getSprite("tiles.png");
 		this.font = this.assets.getSprite("font.png");
-		this.ball = new game_Entity();
-		this.entities.push(this.ball);
-		this.ball.position.z = 64;
 	}
 	,onDraw: function() {
 		this.clear();
-		var camX = this.camera.x - this.get_width() / 2 + 16;
-		var camY = this.camera.y - this.get_height() / 2 + 16;
-		var _g1 = 0;
-		while(_g1 < 144) {
-			var i = _g1++;
-			var tile = this.map[i];
-			var pos = engine_MathExtensions.fromIso(i % 12 * 16,Math.floor(i / 12) * 16,0);
-			if(tile != -1) {
-				this.sb.drawTile(this.tileSet,7,10,tile,Math.floor(pos.x - camX),Math.floor(pos.y - camY));
+		var camX = Math.floor(this.camera.x - this.get_width() / 2);
+		var camY = Math.floor(this.camera.y - this.get_height() / 2);
+		var _g = 0;
+		while(_g < 12) {
+			var y = _g++;
+			var _g1 = 0;
+			while(_g1 < 12) {
+				var x = _g1++;
+				var a = this.mapGet(x,y);
+				var b = this.mapGet(x + 1,y);
+				var c = this.mapGet(x + 1,y + 1);
+				var d = this.mapGet(x,y + 1);
+				var minH = a;
+				var maxH = a;
+				if(b < minH) {
+					minH = b;
+				} else {
+					minH = minH;
+				}
+				if(c < minH) {
+					minH = c;
+				} else {
+					minH = minH;
+				}
+				if(d < minH) {
+					minH = d;
+				} else {
+					minH = minH;
+				}
+				if(b > maxH) {
+					maxH = b;
+				} else {
+					maxH = maxH;
+				}
+				if(c > maxH) {
+					maxH = c;
+				} else {
+					maxH = maxH;
+				}
+				if(d > maxH) {
+					maxH = d;
+				} else {
+					maxH = maxH;
+				}
+				a -= minH;
+				b -= minH;
+				c -= minH;
+				d -= minH;
+				var elevation = maxH * 8;
+				var t = (d << 6) + (c << 4) + (b << 2) + a;
+				var tile = 0;
+				switch(t) {
+				case 1:
+					tile = 1;
+					break;
+				case 4:
+					tile = 4;
+					break;
+				case 5:
+					tile = 6;
+					break;
+				case 16:
+					tile = 3;
+					break;
+				case 17:
+					tile = 19;
+					elevation -= 8;
+					break;
+				case 20:
+					tile = 7;
+					break;
+				case 21:
+					tile = 11;
+					break;
+				case 25:
+					tile = 17;
+					elevation -= 8;
+					break;
+				case 64:
+					tile = 2;
+					break;
+				case 65:
+					tile = 5;
+					break;
+				case 68:
+					tile = 18;
+					break;
+				case 69:
+					tile = 12;
+					break;
+				case 70:
+					tile = 14;
+					elevation -= 8;
+					break;
+				case 80:
+					tile = 8;
+					break;
+				case 81:
+					tile = 13;
+					break;
+				case 84:
+					tile = 10;
+					break;
+				case 100:
+					tile = 16;
+					elevation -= 8;
+					break;
+				case 145:
+					tile = 15;
+					elevation -= 8;
+					break;
+				case 148:
+					tile = 20;
+					elevation -= 8;
+					break;
+				default:
+					tile = 0;
+				}
+				var tx = x * 16 - 8;
+				var ty = y * 16 - 8;
+				var pos = engine_MathExtensions.fromIso(tx,ty,elevation);
+				this.sb.drawTile(this.tileSet,10,10,tile,pos.x - camX,pos.y - camY,16,16);
 			}
 		}
-		var ballPos = engine_MathExtensions.fromIso(this.ball.position.x,this.ball.position.y,this.ball.position.z);
-		var ballSPos = engine_MathExtensions.fromIso(this.ball.position.x,this.ball.position.y,0);
-		this.sb.drawTile(this.tileSet,7,10,57,Math.floor(ballPos.x - camX),Math.floor(ballPos.y - camY),16,18);
-		this.sb.drawTile(this.tileSet,7,10,58,Math.floor(ballSPos.x - camX),Math.floor(ballSPos.y - camY),16,14);
 		this.sb.flush(this,engine_Sorting.Y_SORT);
-		this.text(this.font," !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ","Z: " + this.ball.position.z,2,2);
-		this.text(this.font," !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ","VX: " + this.ball.velocity.x,2,10);
-		this.text(this.font," !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ","AX: " + this.ball.accel.x,2,18);
+		this.tri(this.tileSet,new engine_Vert(0,0,0,0),new engine_Vert(120,0,1,0),new engine_Vert(120,120,1,1),255,0,0);
+		this.tri(this.tileSet,new engine_Vert(120,120,1,1),new engine_Vert(0,120,0,1),new engine_Vert(0,0,0,0),255,255,0);
 	}
 	,onUpdate: function(dt) {
-		if(this.input.isKeyHeld("a")) {
-			this.ball.accel.x += 200.0 * dt;
-		}
-		var _g = 0;
-		var _g1 = this.entities;
-		while(_g < _g1.length) {
-			var ent = _g1[_g];
-			++_g;
-			ent.velocity = ent.velocity.add(ent.accel.mul(dt)).mul(0.99);
-			ent.velocity.z -= 100.0 * dt;
-			ent.position = ent.position.add(ent.velocity.mul(dt));
-			ent.accel = ent.accel.mul(0.99);
-			if(ent.accel.get_length() <= 1e-5) {
-				ent.accel.x = ent.accel.y = ent.accel.z = 0.0;
-			}
-			if(this.mapGet(Math.floor(ent.position.x / 16),Math.floor(ent.position.y / 16)) != -1 && ent.position.z <= 0) {
-				ent.velocity.z *= -1;
-			}
-		}
+		this.time += dt;
 	}
 	,__class__: Main
 });
@@ -381,6 +638,7 @@ engine_AssetManager.prototype = {
 		while(_g < _g1.length) {
 			var ast = [_g1[_g]];
 			++_g;
+			var _g2 = ast[0].type;
 			var img = [new Image()];
 			img[0].onload = (function(img1,ast1) {
 				return function() {
@@ -424,7 +682,8 @@ engine_AssetManager.prototype = {
 var engine_MathExtensions = function() { };
 engine_MathExtensions.__name__ = true;
 engine_MathExtensions.randomBetween = function(a,b) {
-	return a + Math.floor(Math.random() * (b - a));
+	var diff = b - a;
+	return a + Math.floor(Math.random() * diff);
 };
 engine_MathExtensions.fromIso = function(x,y,z) {
 	return new engine_Point(Math.floor(x - y),Math.floor((x + y) / 2 - z));
@@ -433,7 +692,7 @@ engine_MathExtensions.toIso = function(x,y,z) {
 	if(z == null) {
 		z = 0.0;
 	}
-	return new engine_Vector(y + x / 2.0,y - x / 2.0,z);
+	return new engine_Vector((2.0 * y + x) / 2.0,(2.0 * y - x) / 2.0,z);
 };
 var engine_Range = function(start,end,step) {
 	this.index = start;
@@ -451,6 +710,16 @@ engine_Range.prototype = {
 	}
 	,__class__: engine_Range
 };
+var engine_Vert = function(x,y,u,v) {
+	this.x = x;
+	this.y = y;
+	this.u = u;
+	this.v = v;
+};
+engine_Vert.__name__ = true;
+engine_Vert.prototype = {
+	__class__: engine_Vert
+};
 var engine__$InputManager_InputState = function() {
 };
 engine__$InputManager_InputState.__name__ = true;
@@ -458,6 +727,7 @@ engine__$InputManager_InputState.prototype = {
 	__class__: engine__$InputManager_InputState
 };
 var engine_InputManager = function(canvas) {
+	this.active = true;
 	this.mouseY = 0;
 	this.mouseX = 0;
 	var _gthis = this;
@@ -508,7 +778,10 @@ var engine_InputManager = function(canvas) {
 	window.document.body.onmousedown = function(e2) {
 		e2.preventDefault();
 		if(!_gthis.mouse.h.hasOwnProperty(e2.button)) {
-			_gthis.mouse.h[e2.button] = new engine__$InputManager_InputState();
+			var _this8 = _gthis.mouse;
+			var key8 = e2.button;
+			var value2 = new engine__$InputManager_InputState();
+			_this8.h[key8] = value2;
 		}
 		_gthis.mouse.h[e2.button].pressed = true;
 		_gthis.mouse.h[e2.button].held = true;
@@ -516,7 +789,10 @@ var engine_InputManager = function(canvas) {
 	window.document.body.onmouseup = function(e3) {
 		e3.preventDefault();
 		if(!_gthis.mouse.h.hasOwnProperty(e3.button)) {
-			_gthis.mouse.h[e3.button] = new engine__$InputManager_InputState();
+			var _this9 = _gthis.mouse;
+			var key9 = e3.button;
+			var value3 = new engine__$InputManager_InputState();
+			_this9.h[key9] = value3;
 		}
 		_gthis.mouse.h[e3.button].released = true;
 		_gthis.mouse.h[e3.button].held = false;
@@ -529,6 +805,12 @@ var engine_InputManager = function(canvas) {
 	};
 	canvas.oncontextmenu = function() {
 		return false;
+	};
+	window.onfocus = function() {
+		_gthis.active = true;
+	};
+	window.onblur = function() {
+		_gthis.active = false;
 	};
 };
 engine_InputManager.__name__ = true;
@@ -688,7 +970,8 @@ engine_SpriteBatch.prototype = {
 		while(_g < _g1.length) {
 			var cmd = _g1[_g];
 			++_g;
-			switch(cmd.drawType[1]) {
+			var _g2 = cmd.drawType;
+			switch(_g2[1]) {
 			case 0:
 				canvas.sprite(cmd.sprite,cmd.x,cmd.y,cmd.sx,cmd.sy,cmd.sw,cmd.sh);
 				break;
@@ -730,7 +1013,10 @@ engine_Vector.prototype = {
 		return new engine_Vector(this.x / len,this.y / len,this.z / len);
 	}
 	,get_length: function() {
-		return Math.sqrt(this.dot(this));
+		return Math.sqrt(this.get_lengthSqr());
+	}
+	,get_lengthSqr: function() {
+		return this.dot(this);
 	}
 	,add: function(rhs) {
 		return new engine_Vector(this.x + rhs.x,this.y + rhs.y,this.z + rhs.z);
@@ -749,11 +1035,15 @@ engine_Vector.prototype = {
 var game_Entity = function() {
 	this.position = new engine_Vector(0,0);
 	this.velocity = new engine_Vector(0,0);
-	this.accel = new engine_Vector(0,0);
+	this.resting = false;
 };
 game_Entity.__name__ = true;
 game_Entity.prototype = {
-	__class__: game_Entity
+	applyForce: function(f) {
+		this.resting = false;
+		this.velocity = this.velocity.add(f);
+	}
+	,__class__: game_Entity
 };
 var haxe_IMap = function() { };
 haxe_IMap.__name__ = true;
@@ -978,8 +1268,9 @@ js_Boot.__interfLoop = function(cc,cl) {
 		var _g1 = 0;
 		var _g = intf.length;
 		while(_g1 < _g) {
-			var i = intf[_g1++];
-			if(i == cl || js_Boot.__interfLoop(i,cl)) {
+			var i = _g1++;
+			var i1 = intf[i];
+			if(i1 == cl || js_Boot.__interfLoop(i1,cl)) {
 				return true;
 			}
 		}
@@ -1079,6 +1370,25 @@ engine_GameCanvas.TIME_STEP = 0.016666666666666666;
 Main.MAP_SIZE = 12;
 Main.BALL_SPRITE = 57;
 Main.CHAR_MAP = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+Main.RAMP_TO_LEFT = 5;
+Main.RAMP_TO_TOP = 6;
+Main.RAMP_TO_RIGHT = 7;
+Main.RAMP_TO_BOTTOM = 8;
+Main.RAMPS = [5,6,7,8];
+Main.CORNER_TOP_LEFT = [16,37];
+Main.CORNER_TOP_RIGHT = [21,42];
+Main.CORNER_BOTTOM_LEFT = [20,41];
+Main.CORNER_BOTTOM_RIGHT = [19,40];
+Main.TOP = [15,36];
+Main.BOTTOM = [18,39];
+Main.LEFT = [14,35];
+Main.RIGHT = [17,38];
+Main.TOP_LEFT = [0,1,2,3];
+Main.TOP_RIGHT = [0,4,8,12];
+Main.BOTTOM_RIGHT = [0,16,32,48];
+Main.BOTTOM_LEFT = [0,64,128,192];
 js_Boot.__toStr = ({ }).toString;
 Main.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);
+
+//# sourceMappingURL=game.js.map

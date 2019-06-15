@@ -24,8 +24,8 @@ class MathExtensions {
 
 	public static function toIso(x: Int, y: Int, ?z: Float = 0.0) {
 		return new Vector(
-			y + (x / 2.0),
-			y - (x / 2.0),
+			(2.0 * y + x) / 2.0,
+			(2.0 * y - x) / 2.0,
 			z
 		);
 	}
@@ -44,6 +44,20 @@ class Range {
 
 	public inline function hasNext() return index < end;
 	public inline function next() return (index += step) - step;
+}
+
+class Vert {
+	public var x: Int;
+	public var y: Int;
+	public var u: Float;
+	public var v: Float;
+
+	public function new(x: Int, y: Int, u: Float, v: Float) {
+		this.x = x;
+		this.y = y;
+		this.u = u;
+		this.v = v;
+	}
 }
 
 class GameCanvas {
@@ -108,6 +122,42 @@ class GameCanvas {
 		this.bctx.imageSmoothingEnabled = false;
 
 		this.pixels = this.bctx.createImageData(this.buffer.width, this.buffer.height);
+	}
+
+	public function tri(spr: Sprite, v0: Vert, v1: Vert, v2: Vert, ?r: Int = 255, ?g: Int = 255, ?b: Int = 255) {
+		var minX = Math.floor(Math.min(Math.min(v0.x, v1.x), v2.x));
+		var maxX = Math.ceil(Math.max(Math.max(v0.x, v1.x), v2.x));
+		var minY = Math.floor(Math.min(Math.min(v0.y, v1.y), v2.y));
+		var maxY = Math.ceil(Math.max(Math.max(v0.y, v1.y), v2.y));
+		for (y in minY...maxY) {
+			for (x in minX...maxX) {
+				var px = x + 0.5;
+				var py = y + 0.5;
+
+				var w0 = cross(v1, v2, px, py);
+				var w1 = cross(v2, v0, px, py);
+				var w2 = cross(v0, v1, px, py);
+				var area = cross(v0, v1, v2.x, v2.y);
+
+				if (w0 >= 1e-5 || w1 >= 1e-5 || w2 >= 1e-5) {
+					continue;
+				}
+
+				if (spr != null) {
+					var u = (w0 * v0.u + w1 * v1.u + w2 * v2.u) / area;
+					var v = (w0 * v0.v + w1 * v1.v + w2 * v2.v) / area;
+					var tx = Math.floor(fmod(u, 1.0) * (spr.width - 1));
+					var ty = Math.floor(fmod(v, 1.0) * (spr.height - 1));
+					var idx = (tx + ty * spr.width) * 4;
+					var tr = spr.pixels[idx + 0];
+					var tg = spr.pixels[idx + 1];
+					var tb = spr.pixels[idx + 2];
+					dot(x, y, tr, tg, tb);
+				} else {
+					dot(x, y, r, g, b);
+				}
+			}
+		}
 	}
 
 	public function dot(x: Int, y: Int, r: Int, g: Int, b: Int) {
@@ -192,17 +242,30 @@ class GameCanvas {
 		lastTime = currentTime;
 		accum += delta;
 
-		this.input.refresh();
-
 		while (accum >= TIME_STEP) {
 			accum -= TIME_STEP;
-			onUpdate(TIME_STEP);
+			if (this.input.active) onUpdate(TIME_STEP);
 		}
 
-		onDraw();
-		flip();
+		this.input.refresh();
+
+		if (this.input.active) {
+			onDraw();
+			flip();
+		}
 
 		Browser.window.requestAnimationFrame(_mainloop_);
+	}
+
+	function cross(a: Vert,  b: Vert,  cx: Float, cy: Float) : Float {
+		return (b.x - a.x) * -(cy - a.y) - -(b.y - a.y) * (cx - a.x);
+	}
+
+	function fmod(a: Float, b: Float) : Float {
+		if (a < 0.0) {
+			a += b;
+		}
+		return a % b;
 	}
 
 }

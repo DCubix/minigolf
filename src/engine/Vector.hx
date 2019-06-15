@@ -16,6 +16,7 @@ class Vector {
 	public var z: Float;
 
 	public var length(get_length, null): Float;
+	public var lengthSqr(get_lengthSqr, null): Float;
 
 	public function new(x: Float, y: Float, ?z: Float = 0.0) {
 		this.x = x;
@@ -40,7 +41,8 @@ class Vector {
 		return new Vector(this.x / len, this.y / len, this.z / len);
 	}
 
-	function get_length() { return Math.sqrt(this.dot(this)); }
+	function get_length() { return Math.sqrt(this.lengthSqr); }
+	function get_lengthSqr() { return (this.dot(this)); }
 
 	@:op(A + B)
 	public function add(rhs: Vector) : Vector {
